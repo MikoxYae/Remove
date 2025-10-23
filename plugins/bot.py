@@ -1,19 +1,24 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from database.database import add_channel, get_channel
+from database.database import add_channel
 from config import OWNER_ID
 import asyncio
 
 @Client.on_message(filters.command("connect") & filters.user(OWNER_ID))
 async def connect_channel(client: Client, message: Message):
+    """
+    Command: /connect Channel Name Invite Link
+    Example: /connect Snap Premium 2 https://t.me/+ZVM9bS0OLWZjZTQ1
+    """
+    
     # Check if command has correct format
     if len(message.command) < 3:
         await message.reply_text(
-            "❌ Invalid format!\n\n"
+            "❌ **Invalid format!**\n\n"
             "**Usage:**\n"
             "`/connect Channel Name Invite Link`\n\n"
             "**Example:**\n"
-            "`/connect Snap premium 2 https://t.me/+4fteb1Teqh8wODVl`"
+            "`/connect Snap Premium 2 https://t.me/+ZVM9bS0OLWZjZTQ1`"
         )
         return
     
@@ -42,21 +47,23 @@ async def connect_channel(client: Client, message: Message):
         f"Timeout: 60 seconds"
     )
     
-    # Wait for forwarded message
-    def check_forward(_, __, m: Message):
-        return (
-            m.from_user.id == OWNER_ID and 
-            m.forward_from_chat is not None and
-            m.forward_from_chat.type == "channel"
-        )
-    
     try:
         # Wait for forwarded message with 60 second timeout
         forwarded_msg = await client.listen(
             message.chat.id,
-            filters=filters.create(check_forward),
             timeout=60
         )
+        
+        # Check if it's forwarded from a channel
+        if not forwarded_msg.forward_from_chat:
+            await waiting_msg.delete()
+            await message.reply_text("❌ Please forward a message from a channel!")
+            return
+        
+        if forwarded_msg.forward_from_chat.type != "channel":
+            await waiting_msg.delete()
+            await message.reply_text("❌ Please forward a message from a **channel**, not from user or group!")
+            return
         
         # Extract channel ID
         channel_id = forwarded_msg.forward_from_chat.id
@@ -81,3 +88,7 @@ async def connect_channel(client: Client, message: Message):
             "You didn't forward any message within 60 seconds.\n"
             "Please try again with `/connect` command."
         )
+    
+    except Exception as e:
+        await waiting_msg.delete()
+        await message.reply_text(f"❌ **Error occurred:**\n`{str(e)}`")
