@@ -1,5 +1,7 @@
 import motor.motor_asyncio
 from config import DB_URI, DB_NAME
+from datetime import datetime
+from bson import ObjectId
 
 # MongoDB client
 client = motor.motor_asyncio.AsyncIOMotorClient(DB_URI)
@@ -8,6 +10,7 @@ db = client[DB_NAME]
 # Collections
 users_col = db["users"]
 channels_col = db["channels"]
+removal_tasks_col = db["removal_tasks"]
 
 # ==================== USER FUNCTIONS ====================
 
@@ -54,7 +57,8 @@ async def add_channel(channel_id, channel_name, invite_link):
     channel_data = {
         "_id": channel_id,
         "name": channel_name,
-        "invite_link": invite_link
+        "invite_link": invite_link,
+        "connected_at": datetime.utcnow()
     }
     
     # Update if exists, insert if new
@@ -89,3 +93,77 @@ async def channel_exists(channel_id):
     """Check if channel exists in database"""
     channel = await channels_col.find_one({"_id": channel_id})
     return channel is not None
+
+# ==================== REMOVAL TASK FUNCTIONS ====================
+
+async def add_removal_task(user_id, removal_time, duration, unit):
+    """Add removal task to database"""
+    task_data = {
+        "user_id": user_id,
+        "removal_time": removal_time,
+        "duration": duration,
+        "unit": unit,
+        "created_at": datetime.utcnow(),
+        "status": "pending"
+    }
+    
+    result = await removal_tasks_col.insert_one(task_data)
+    return str(result.inserted_id)
+
+async def get_removal_task(task_id):
+    """Get removal task by ID"""
+    try:
+        return await removal_tasks_col.find_one({"_id": ObjectId(task_id)})
+    except:
+        return None
+
+async def get_pending_tasks():
+    """Get all pending removal tasks"""
+    tasks = []
+    async for task in removal_tasks_col.find({"status": "pending"}):
+        tasks.append(task)
+    return tasks
+
+async def get_all_tasks():
+    """Get all removal tasks"""
+    tasks = []
+    async for task in removal_tasks_col.find().sort("created_at", -1):
+        tasks.append(task)
+    return tasks
+
+async def update_task_status(task_id, status):
+    """Update task status"""
+    try:
+        await removal_tasks_col.update_one(
+            {"_id": ObjectId(task_id)},
+            {"$set": {
+                "status": status,
+                "updated_at": datetime.utcnow()
+            }}
+        )
+        return True
+    except:
+        return False
+
+async def delete_task(task_id):
+    """Delete removal task"""
+    try:
+        result = await removal_tasks_col.delete_one({"_id": ObjectId(task_id)})
+        return result.deleted_count > 0
+    except:
+        return False
+
+async def get_user_tasks(user_id):
+    """Get all removal tasks for a specific user"""
+    tasks = []
+    async for task in removal_tasks_col.find({"user_id": user_id}):
+        tasks.append(task)
+    return tasks
+
+async def count_tasks():
+    """Get total removal tasks count"""
+    return await removal_tasks_col.count_documents({})
+
+async def count_pending_tasks():
+    """Get pending removal tasks count"""
+    return await removal_tasks_col.count_documents({"status": "pending"})
