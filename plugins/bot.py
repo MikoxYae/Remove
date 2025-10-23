@@ -54,20 +54,25 @@ async def connect_channel(client: Client, message: Message):
             timeout=60
         )
         
-        # Check if message has forward origin
+        # Check if message is forwarded
         if not forwarded_msg.forward_origin:
             await waiting_msg.delete()
-            await message.reply_text("❌ Please forward a message from a channel!")
+            await message.reply_text("❌ Please forward a message!")
             return
         
-        # Check if forwarded from channel using new property
-        if not hasattr(forwarded_msg.forward_origin, 'chat') or forwarded_msg.forward_origin.chat.type != "channel":
+        # Extract channel ID based on forward origin type
+        channel_id = None
+        
+        # Try to get channel from forward_origin
+        if hasattr(forwarded_msg.forward_origin, 'chat'):
+            channel_id = forwarded_msg.forward_origin.chat.id
+        elif hasattr(forwarded_msg.forward_origin, 'sender_chat'):
+            channel_id = forwarded_msg.forward_origin.sender_chat.id
+        
+        if not channel_id:
             await waiting_msg.delete()
-            await message.reply_text("❌ Please forward a message from a **channel**, not from user or group!")
+            await message.reply_text("❌ Could not extract channel ID. Please forward a message from a channel!")
             return
-        
-        # Extract channel ID using new property
-        channel_id = forwarded_msg.forward_origin.chat.id
         
         # Save to database
         await add_channel(channel_id, channel_name, invite_link)
@@ -92,4 +97,4 @@ async def connect_channel(client: Client, message: Message):
     
     except Exception as e:
         await waiting_msg.delete()
-        await message.reply_text(f"❌ **Error occurred:**\n`{str(e)}`")
+        await message.reply_text(f"❌ **Error occurred:**\n`{str(e)}`\n\nPlease send screenshot to developer.")
