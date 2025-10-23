@@ -54,19 +54,20 @@ async def connect_channel(client: Client, message: Message):
             timeout=60
         )
         
-        # Check if it's forwarded from a channel
-        if not forwarded_msg.forward_from_chat:
+        # Check if message has forward origin
+        if not forwarded_msg.forward_origin:
             await waiting_msg.delete()
             await message.reply_text("❌ Please forward a message from a channel!")
             return
         
-        if forwarded_msg.forward_from_chat.type != "channel":
+        # Check if forwarded from channel using new property
+        if not hasattr(forwarded_msg.forward_origin, 'chat') or forwarded_msg.forward_origin.chat.type != "channel":
             await waiting_msg.delete()
             await message.reply_text("❌ Please forward a message from a **channel**, not from user or group!")
             return
         
-        # Extract channel ID
-        channel_id = forwarded_msg.forward_from_chat.id
+        # Extract channel ID using new property
+        channel_id = forwarded_msg.forward_origin.chat.id
         
         # Save to database
         await add_channel(channel_id, channel_name, invite_link)
